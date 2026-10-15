@@ -58,6 +58,12 @@
     return h ? `${h} godz.${m ? ` ${m} min` : ''}` : `${m} min`;
   }
   const typeLabel = (t) => (t === 'tv' ? 'Serial' : 'Film');
+  const fmtVote = (v) => (typeof v === 'number' ? v.toFixed(1).replace('.', ',') : '');
+  function fmtCount(n) {
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.', ',')} tys.`;
+    return String(n);
+  }
+  const scoreHTML = (v) => (typeof v === 'number' ? `<span class="score" aria-label="Ocena ${fmtVote(v)}"><span class="star" aria-hidden="true">★</span><b>${fmtVote(v)}</b></span>` : '');
 
   const ICON = {
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg>',
@@ -108,7 +114,9 @@
       year: year(type === 'tv' ? r.first_air_date : r.release_date),
       poster: r.poster_path || '',
       backdrop: r.backdrop_path || '',
-      overview: r.overview || ''
+      overview: r.overview || '',
+      vote: r.vote_count ? r.vote_average : null,
+      votes: r.vote_count || 0
     };
   }
 
@@ -158,6 +166,8 @@
       overviewLang,
       tagline,
       genres: (d.genres || []).map((g) => g.name),
+      vote: d.vote_count ? d.vote_average : null,
+      votes: d.vote_count || 0,
       runtime: type === 'movie' ? d.runtime : null,
       seasons: type === 'tv' ? d.number_of_seasons : null,
       providers: parseProviders(d['watch/providers']),
@@ -170,6 +180,7 @@
     state.page = page;
     $('#page-list').hidden = page !== 'list';
     $('#page-search').hidden = page !== 'search';
+    $('#page-random').hidden = page !== 'random';
     $$('.tab').forEach((t) => (t.getAttribute('data-goto') === page ? t.setAttribute('aria-current', 'page') : t.removeAttribute('aria-current')));
     window.scrollTo(0, 0);
     if (page === 'search' && !state.query) setTimeout(() => $('#search-input').focus(), 50);
@@ -419,7 +430,7 @@
           ${posterHTML(r.poster, r.title)}
           <div class="row-main">
             <h3 class="row-title">${esc(r.title)}</h3>
-            <p class="row-meta"><span class="tag">${typeLabel(r.type)}</span>${r.year ? `<span>${esc(r.year)}</span>` : ''}${onList ? `<span class="on-list">${ICON.check}Na liście</span>` : ''}</p>
+            <p class="row-meta"><span class="tag">${typeLabel(r.type)}</span>${r.year ? `<span>${esc(r.year)}</span>` : ''}${scoreHTML(r.vote)}${onList ? `<span class="on-list">${ICON.check}Na liście</span>` : ''}</p>
             ${r.overview ? `<p class="result-overview">${esc(r.overview)}</p>` : ''}
           </div>
           ${ICON.chev}
@@ -505,7 +516,7 @@
     if ($('#settings').hidden) { backdrop.hidden = true; lockScroll(false); }
     current = null;
     detailToken++;
-    if (state.page === 'list') renderList(); else renderResults();
+    if (state.page === 'list') renderList(); else if (state.page === 'search') renderResults(); else renderPicks();
   }
 
   async function loadDetail(type, id) {
@@ -521,6 +532,7 @@
           title: d.title, year: d.year, poster: d.poster, backdrop: d.backdrop,
           overview: d.overview, overviewLang: d.overviewLang, tagline: d.tagline,
           genres: d.genres, runtime: d.runtime, seasons: d.seasons,
+          vote: d.vote, votes: d.votes, voteAt: Date.now(),
           providers: d.providers, providersAt: d.providersAt
         });
       }
@@ -578,6 +590,9 @@
           <h2 class="sheet-title" id="sheet-title">${esc(d.title)}</h2>
           ${d.original && d.original !== d.title ? `<p class="muted small" style="margin-top:6px">${esc(d.original)}</p>` : ''}
           <p class="detail-meta">${meta.filter(Boolean).map((m) => `<span>${esc(m)}</span>`).join('')}</p>
+          ${typeof d.vote === 'number'
+            ? `<div class="score-big"><span class="num" aria-label="Ocena ${fmtVote(d.vote)} na 10"><span class="star" aria-hidden="true">★</span>${fmtVote(d.vote)}<small>/10</small></span><span class="src">TMDB · ${fmtCount(d.votes)} ${plural(d.votes, 'głos', 'głosy', 'głosów')}</span></div>`
+            : (!loading ? '<div class="score-big"><span class="src">Brak ocen na TMDB</span></div>' : '')}
         </div>
       </div>
 
@@ -657,6 +672,176 @@
       }
       y0 = null;
     });
+  });
+
+  // ---------- Strona 3: Losuj ----------
+  const MIN_VOTE = 5.8;
+  const draw = { mode: 'list', picks: [], seenNew: new Set(), lastList: [] };
+  const HINTS = {
+    list: 'Trzy nieobejrzane tytuły z Twojej listy z oceną powyżej 5,8.',
+    new: 'Trzy filmy lub seriale z oceną powyżej 5,8, które obejrzysz w abonamencie w Polsce.'
+  };
+
+  function setDrawStatus(text, isError) {
+    const el = $('#draw-status');
+    el.textContent = text;
+    el.classList.toggle('error', !!isError);
+  }
+
+  $$('.rmode').forEach((b) => b.addEventListener('click', () => {
+    draw.mode = b.dataset.mode;
+    $$('.rmode').forEach((x) => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
+    $('#draw-hint').textContent = HINTS[draw.mode];
+    $('#draw-label').textContent = 'Losuj 3 tytuły';
+    draw.picks = [];
+    renderPicks();
+    setDrawStatus('');
+  }));
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  // Uzupełnia brakujące oceny tytułów z listy (np. dodanych przed tą wersją appki)
+  async function ensureVotes(items) {
+    const missing = items.filter((i) => typeof i.vote !== 'number' && !(i.voteAt && Date.now() - i.voteAt < 7 * 864e5));
+    let idx = 0;
+    async function worker() {
+      while (idx < missing.length) {
+        const it = missing[idx++];
+        try {
+          const d = await tmdb(`/${it.type}/${it.id}`, { language: LANG });
+          updateItem(it.key, { vote: d.vote_count ? d.vote_average : null, votes: d.vote_count || 0, voteAt: Date.now() });
+        } catch (e) {
+          if (e.code === 'badkey' || e.code === 'nokey' || e.code === 'offline') throw e;
+        }
+      }
+    }
+    await Promise.all([worker(), worker(), worker()]);
+  }
+
+  async function drawFromList() {
+    const todo = state.list.filter((i) => !i.watched);
+    if (!todo.length) {
+      return { picks: [], msg: state.list.length ? 'Wszystko z listy obejrzane. Spróbuj „Nowe propozycje”.' : 'Twoja lista jest pusta. Dodaj tytuły w wyszukiwarce albo spróbuj „Nowe propozycje”.' };
+    }
+    if (todo.some((i) => typeof i.vote !== 'number')) {
+      setDrawStatus('Sprawdzam oceny tytułów z listy…');
+      try { await ensureVotes(todo); } catch (e) { if (!todo.some((i) => typeof i.vote === 'number')) throw e; }
+    }
+    const pool = state.list.filter((i) => !i.watched && typeof i.vote === 'number' && i.vote > MIN_VOTE);
+    if (!pool.length) return { picks: [], msg: 'Żaden nieobejrzany tytuł z listy nie ma oceny powyżej 5,8.' };
+    // Unikaj powtórki poprzedniego losowania, jeśli jest z czego wybierać
+    const fresh = pool.filter((i) => !draw.lastList.includes(i.key));
+    const base = fresh.length >= 3 ? fresh : pool;
+    const picks = shuffle(base).slice(0, 3);
+    draw.lastList = picks.map((p) => p.key);
+    const msg = pool.length < 3
+      ? `Na liście ${pool.length === 1 ? 'jest tylko 1 nieobejrzany tytuł' : `są tylko ${pool.length} nieobejrzane tytuły`} z oceną powyżej 5,8.`
+      : '';
+    return { picks, msg };
+  }
+
+  function discoverPage(type, page) {
+    return tmdb(`/discover/${type}`, {
+      language: LANG,
+      watch_region: REGION,
+      with_watch_monetization_types: 'flatrate',
+      'vote_average.gte': MIN_VOTE + 0.01,
+      'vote_count.gte': type === 'movie' ? 300 : 150,
+      include_adult: 'false',
+      sort_by: 'popularity.desc',
+      page
+    });
+  }
+
+  async function drawNew() {
+    const fetchType = async (type) => {
+      const maxPage = type === 'movie' ? 25 : 15;
+      let data = await discoverPage(type, 1 + Math.floor(Math.random() * maxPage));
+      if (!data.results || !data.results.length) {
+        const total = Math.max(1, Math.min(data.total_pages || 1, maxPage));
+        data = await discoverPage(type, 1 + Math.floor(Math.random() * total));
+      }
+      return (data.results || []).map((r) => normalizeResult({ ...r, media_type: type }));
+    };
+    const [movies, tv] = await Promise.all([fetchType('movie'), fetchType('tv')]);
+    let pool = [...movies, ...tv].filter((r) => typeof r.vote === 'number' && r.vote > MIN_VOTE && !findItem(r.type, r.id));
+    const fresh = pool.filter((r) => !draw.seenNew.has(keyOf(r.type, r.id)));
+    if (fresh.length >= 3) pool = fresh;
+    const picks = shuffle(pool).slice(0, 3);
+    picks.forEach((p) => draw.seenNew.add(keyOf(p.type, p.id)));
+    return { picks, msg: picks.length ? '' : 'Nic nie wylosowałem. Spróbuj jeszcze raz.' };
+  }
+
+  async function runDraw() {
+    if (!state.key) { setDrawStatus('Najpierw dodaj klucz TMDB w ustawieniach.', true); openSettings(); return; }
+    const btn = $('#draw-btn');
+    btn.disabled = true;
+    btn.classList.add('rolling');
+    setDrawStatus('Losuję…');
+    try {
+      const { picks, msg } = draw.mode === 'list' ? await drawFromList() : await drawNew();
+      draw.picks = picks;
+      renderPicks();
+      setDrawStatus(msg);
+      $('#draw-label').textContent = picks.length ? 'Losuj ponownie' : 'Losuj 3 tytuły';
+      loadPickProviders(picks);
+    } catch (e) {
+      setDrawStatus(e.message, true);
+      if (e.code === 'badkey') openSettings();
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('rolling');
+    }
+  }
+  $('#draw-btn').addEventListener('click', runDraw);
+
+  function provLogosHTML(p) {
+    if (!p) return '';
+    const subs = (p.groups.find((g) => g.label === 'W abonamencie') || { items: [] }).items;
+    if (!subs.length) return '<span class="more">Brak w abonamencie w Polsce</span>';
+    return subs.slice(0, 5).map((it) => (it.logo ? `<img src="${img(it.logo, 'w92')}" alt="${esc(it.name)}" title="${esc(it.name)}" loading="lazy">` : '')).join('')
+      + (subs.length > 5 ? `<span class="more">+${subs.length - 5}</span>` : '');
+  }
+
+  function renderPicks() {
+    $('#picks').innerHTML = draw.picks.map((r, idx) => `
+      <li>
+        <button type="button" class="pick" data-idx="${idx}">
+          ${posterHTML(r.poster, r.title, 'w185')}
+          <div class="row-main">
+            <h3 class="row-title">${esc(r.title)}</h3>
+            <p class="row-meta"><span class="tag">${typeLabel(r.type)}</span>${r.year ? `<span>${esc(r.year)}</span>` : ''}${scoreHTML(r.vote)}</p>
+            ${r.overview ? `<p class="result-overview">${esc(r.overview)}</p>` : ''}
+            <div class="pick-provs" data-key="${esc(keyOf(r.type, r.id))}">${provLogosHTML(r.providers)}</div>
+          </div>
+        </button>
+      </li>`).join('');
+  }
+
+  async function loadPickProviders(picks) {
+    await Promise.all(picks.map(async (r) => {
+      if (r.providers && r.providersAt && Date.now() - r.providersAt < 864e5) return;
+      try {
+        const wp = await tmdb(`/${r.type}/${r.id}/watch/providers`);
+        r.providers = parseProviders(wp);
+        r.providersAt = Date.now();
+        const it = findItem(r.type, r.id);
+        if (it) updateItem(it.key, { providers: r.providers, providersAt: r.providersAt });
+        const box = $(`.pick-provs[data-key="${keyOf(r.type, r.id)}"]`);
+        if (box) box.innerHTML = provLogosHTML(r.providers);
+      } catch (e) { /* bez logotypów */ }
+    }));
+  }
+
+  $('#picks').addEventListener('click', (e) => {
+    const b = e.target.closest('.pick[data-idx]');
+    if (!b) return;
+    const r = draw.picks[+b.dataset.idx];
+    if (r) openDetail(findItem(r.type, r.id) || r);
   });
 
   // ---------- Ustawienia ----------

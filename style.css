@@ -298,7 +298,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 /* ---------- Dolny pasek ---------- */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid; grid-template-columns: repeat(3, 1fr);
   padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 6px) max(16px, env(safe-area-inset-left, 0px));
   background: color-mix(in srgb, var(--shade) 55%, var(--bg));
   -webkit-backdrop-filter: blur(16px);
@@ -313,6 +313,53 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   font-size: .68rem; font-weight: 600;
 }
 .tab[aria-current="page"] { color: var(--accent); }
+
+/* ---------- Ocena TMDB ---------- */
+.score { display: inline-flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score .star { color: var(--accent); }
+.score b { font-weight: 800; color: var(--fg); }
+.score-big {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 10px 0 0;
+}
+.score-big .num {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  padding: 5px 11px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  font-weight: 800; font-size: 1.05rem; color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.score-big .num .star { color: var(--accent); margin-right: 3px; }
+.score-big .num small { font-weight: 600; font-size: .75rem; color: var(--fg-2); }
+.score-big .src { font-size: .78rem; color: var(--fg-2); }
+
+/* ---------- Losuj ---------- */
+.segmented.two { grid-template-columns: 1fr 1fr; }
+.draw { display: grid; gap: 12px; padding-top: 6px; }
+.draw-hint { margin: 0; color: var(--fg-2); font-size: .92rem; }
+.draw-btn { min-height: 54px; font-size: 1.05rem; }
+.draw-btn .dice { width: 24px; height: 24px; }
+.draw-btn.rolling .dice { animation: roll .6s cubic-bezier(.3,.7,.4,1) infinite; }
+@keyframes roll { to { transform: rotate(360deg); } }
+
+.picks { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 12px; }
+.pick {
+  display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 14px;
+  width: 100%; text-align: left;
+  padding: 12px; border: 0; border-radius: var(--r-md);
+  background: var(--surface);
+  animation: deal .35s cubic-bezier(.2,.8,.2,1) both;
+}
+.pick:active { background: color-mix(in srgb, var(--surface) 70%, var(--surface-hi)); }
+.picks li:nth-child(2) .pick { animation-delay: .07s; }
+.picks li:nth-child(3) .pick { animation-delay: .14s; }
+@keyframes deal { from { opacity: .2; transform: translateY(14px) scale(.98); } }
+.pick .poster { width: 84px; }
+.pick .result-overview { -webkit-line-clamp: 3; }
+.pick-provs { display: flex; gap: 6px; flex-wrap: wrap; min-height: 26px; align-items: center; }
+.pick-provs img { width: 26px; height: 26px; border-radius: 7px; }
+.pick-provs .more { font-size: .72rem; color: var(--fg-3); }
 
 /* ---------- Karty (sheet) ---------- */
 .sheet-backdrop {

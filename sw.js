@@ -1,5 +1,5 @@
 // Seans – service worker: appka działa offline, okładki są zapamiętywane.
-const VERSION = 'seans-v3';
+const VERSION = 'seans-v4';
 const SHELL = [
   './',
   './index.html',

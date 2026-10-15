@@ -63,6 +63,26 @@
       <ul class="results" id="results"></ul>
     </section>
 
+    <!-- ===== Strona 3: Losuj ===== -->
+    <section class="page" id="page-random" aria-labelledby="random-title" hidden>
+      <header class="topbar">
+        <h1 id="random-title" class="marquee">Losuj</h1>
+        <div class="segmented two" role="tablist" aria-label="Skąd losować">
+          <button type="button" role="tab" class="seg rmode" data-mode="list" aria-selected="true">Z mojej listy</button>
+          <button type="button" role="tab" class="seg rmode" data-mode="new" aria-selected="false">Nowe propozycje</button>
+        </div>
+      </header>
+      <div class="draw">
+        <p class="draw-hint" id="draw-hint">Trzy nieobejrzane tytuły z Twojej listy z oceną powyżej 5,8.</p>
+        <button type="button" class="btn btn-primary btn-wide draw-btn" id="draw-btn">
+          <svg class="dice" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.3" fill="currentColor"/></svg>
+          <span id="draw-label">Losuj 3 tytuły</span>
+        </button>
+      </div>
+      <div class="search-status" id="draw-status" role="status"></div>
+      <ul class="picks" id="picks"></ul>
+    </section>
+
     <!-- ===== Dolny pasek kart ===== -->
     <nav class="tabbar" aria-label="Nawigacja">
       <button type="button" class="tab" data-goto="list" aria-current="page">
@@ -72,6 +92,10 @@
       <button type="button" class="tab" data-goto="search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <span>Szukaj</span>
+      </button>
+      <button type="button" class="tab" data-goto="random">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>
+        <span>Losuj</span>
       </button>
     </nav>
   </div>
