@@ -1,14 +1,9 @@
-// Seans – service worker: appka działa offline, okładki są zapamiętywane.
-const VERSION = 'seans-v4';
-const SHELL = [
-  './',
-  './index.html',
-  './style.css',
-  './app.js',
-  './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/apple-touch-icon.png'
-];
+// BOOK WORM – service worker: appka działa offline, okładki są zapamiętywane.
+// Uwaga: Seans i BOOK WORM mają ten sam adres główny, więc czyścimy tylko własne pamięci (prefiks "bookworm-").
+const VERSION = 'bookworm-v2';
+const IMG = 'bookworm-img';
+const FONTS = 'bookworm-fonts';
+const SHELL = ['./', './index.html', './style.css', './app.js', './scanner.js', './manifest.webmanifest', './icons/icon-192.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -17,7 +12,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== 'seans-img' && k !== 'seans-fonts').map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('bookworm-') && ![VERSION, IMG, FONTS].includes(k)).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -27,22 +22,18 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // API TMDB: zawsze z sieci (aktualne dane), bez cache.
-  if (url.hostname === 'api.themoviedb.org') return;
+  // Dane o książkach: zawsze z sieci.
+  if (url.hostname === 'www.googleapis.com' || url.hostname === 'openlibrary.org') return;
 
-  // Okładki i logotypy platform: najpierw cache, potem sieć.
-  if (url.hostname === 'image.tmdb.org') {
-    event.respondWith(cacheFirst(req, 'seans-img'));
+  // Okładki: najpierw pamięć, potem sieć.
+  if (url.hostname === 'books.google.com' || url.hostname.endsWith('books.googleusercontent.com') || url.hostname === 'covers.openlibrary.org' || url.hostname.endsWith('archive.org')) {
+    event.respondWith(cacheFirst(req, IMG));
     return;
   }
-
-  // Czcionki Google.
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    event.respondWith(cacheFirst(req, 'seans-fonts'));
+    event.respondWith(cacheFirst(req, FONTS));
     return;
   }
-
-  // Pliki appki: sieć, a gdy jej brak – cache.
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(req)
@@ -61,7 +52,7 @@ async function cacheFirst(req, name) {
   if (hit) return hit;
   try {
     const res = await fetch(req);
-    if (res.ok || res.type === 'opaque') cache.put(req, res.clone());
+    if (res.ok) cache.put(req, res.clone());
     return res;
   } catch (e) {
     return hit || Response.error();
